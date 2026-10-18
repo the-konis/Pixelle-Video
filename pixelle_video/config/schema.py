@@ -71,8 +71,9 @@ class TTSComfyUIConfig(BaseModel):
 
 class TTSSubConfig(BaseModel):
     """TTS-specific configuration (under comfyui.tts)"""
-    inference_mode: str = Field(default="local", description="TTS inference mode: 'local' or 'comfyui'")
+    inference_mode: str = Field(default="local", description="TTS inference mode: 'local', 'comfyui' or 'prerecorded'")
     local: TTSLocalConfig = Field(default_factory=TTSLocalConfig, description="Local TTS (Edge TTS) configuration")
+    prerecorded: dict = Field(default_factory=dict, description="Prerecorded takes: {dir: folder of 001.wav, 002.wav, ...}")
     comfyui: TTSComfyUIConfig = Field(default_factory=TTSComfyUIConfig, description="ComfyUI TTS configuration")
     
     # Backward compatibility: keep default_workflow at top level

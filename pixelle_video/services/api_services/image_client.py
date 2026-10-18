@@ -214,6 +214,9 @@ class ImageClient:
                 # OpenAI uses 'x' separator, e.g. 1024x1024
                 # Attempt to map size if needed or just replace '*'
                 gpt_size = size.replace('*', 'x') if size else "1024x1024"
+                # gpt-image-2 refuses sides that are not multiples of 16 (1080 is one of them)
+                w, h = (int(v) for v in gpt_size.split('x'))
+                gpt_size = f"{(w + 15) // 16 * 16}x{(h + 15) // 16 * 16}"
 
                 path = self.gpt_client.generate_image(
                     prompt=prompt,

@@ -115,6 +115,8 @@ class TTSService(ComfyBaseService):
         mode = inference_mode or self.config.get("inference_mode", "local")
         
         # Route to appropriate implementation
+        if mode == "prerecorded":
+            return await self._use_prerecorded_take(index=params.get("index"), output_path=output_path)
         if mode == "local":
             return await self._call_local_tts(
                 text=text,
@@ -138,6 +140,37 @@ class TTSService(ComfyBaseService):
                 **params
             )
     
+    async def _use_prerecorded_take(self, index: Optional[int], output_path: Optional[str] = None) -> str:
+        """
+        Use a voice take recorded elsewhere (a trained or cloned voice) instead of synthesizing one.
+
+        Frame N (1-based) reads `<prerecorded.dir>/NNN.wav` (or .mp3); the narration text is not read,
+        so the takes must be in the same order as the script's lines. Config: comfyui.tts.prerecorded.dir.
+        """
+        import asyncio
+        import shutil
+
+        take_dir = Path(self.config.get("prerecorded", {}).get("dir", ""))
+        if not index or not take_dir.is_dir():
+            raise ValueError(f"prerecorded TTS needs a frame index and an existing comfyui.tts.prerecorded.dir ({take_dir})")
+        take = next((p for p in (take_dir / f"{index:03d}.wav", take_dir / f"{index:03d}.mp3") if p.exists()), None)
+        if take is None:
+            raise FileNotFoundError(f"no prerecorded take for frame {index} in {take_dir}")
+        if not output_path:
+            output_path = f"output/{uuid.uuid4().hex}.mp3"
+            Path("output").mkdir(parents=True, exist_ok=True)
+        Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+        if take.suffix == Path(output_path).suffix:
+            shutil.copyfile(take, output_path)
+        else:
+            proc = await asyncio.create_subprocess_exec(
+                "ffmpeg", "-y", "-loglevel", "error", "-i", str(take), output_path,
+            )
+            if await proc.wait() != 0:
+                raise RuntimeError(f"ffmpeg could not convert {take}")
+        logger.info(f"✅ Using prerecorded take {take.name} for frame {index}: {output_path}")
+        return output_path
+
     async def _call_local_tts(
         self,
         text: str,
